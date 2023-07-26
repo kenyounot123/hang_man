@@ -1,3 +1,5 @@
+#save_game needs to be updated
+
 
 #module for all text content
 module Display
@@ -18,7 +20,7 @@ module Display
 
   def display_turn_prompt
     <<~HEREDOC
-      It is currently Turn #{@turn}, Try to guess one letter in the secret word.
+      It is currently Turn #{@turn}, Try to guess the letters in the secret word.
       You can also type 'save' or 'exit' to leave the game.
     HEREDOC
   end
@@ -37,6 +39,32 @@ module Display
   def display_reprompt_user_choice
     "Invalid input, Please enter 1 or 2"
   end 
+
+  def display_invalid_guess
+    "Please input a valid letter"
+  end
+
+  def display_wrong_guess
+    <<~HEREDOC
+    This letter is not in the secret word
+    #{@unsolved_letters.join(' , ')}
+    HEREDOC
+  end
+
+  def display_correct_guess
+    <<~HEREDOC
+    You have guessed correctly!
+    #{@solved_letters.join(' ')}
+    HEREDOC
+  end
+
+  def display_letters_remaining
+    "#{@solved_letters.join(' ')}"
+  end
+
+  def display_one_turn_left
+    "Think hard! You have one try left\n"
+  end
 end
 
 
@@ -44,6 +72,7 @@ class Game
   include Display
   def initialize
     @turn = 1
+    @all_letters = ("a".."z").to_a
     @unsolved_letters = []
     @solved_letters = []
     game_start
@@ -66,11 +95,32 @@ class Game
     new_game if user_choice == '1'
     load_saved_game if user_choice == '2'
   end
-
+  
+  #game loop,
+  # loops until turn 11 or until player has won
+  # if user_letter_guess is in the hidden word, udpate solved_letters array with the letter filled in 
+  # if it is not in the hidden word, go next turn 
   def new_game
     @word = random_word
+    puts @word
     create_blank_letters
-    puts display_turn_prompt
+    until game_over? || game_solved?
+      puts display_turn_prompt
+      @user_letter_guess = gets.chomp.downcase
+      until @user_letter_guess.length == 1 && @all_letters.include?(@user_letter_guess)
+        puts display_invalid_guess
+        @user_letter_guess = gets.chomp.downcase
+      end
+      if @user_letter_guess == 'exit'
+        break
+      end
+      save_game if @user_letter_guess == 'save'
+      incorrect_guess unless @word.include?(@user_letter_guess)
+      update_solved_letters if @word.include?(@user_letter_guess)
+      puts display_one_turn_left if @turn == 12
+       
+    
+    end
   end
 
   def load_saved_game
@@ -83,6 +133,36 @@ class Game
     end
     word_list.select { |word| word.length.between?(5, 12) }.sample
   end
+
+  def update_solved_letters
+    @word.split('').each_with_index do |letter, index|
+      if letter == @user_letter_guess
+        @solved_letters[index] = letter
+      end
+    end
+    puts display_correct_guess
+    @turn += 1
+  end
+
+  def incorrect_guess 
+    @turn += 1
+    @unsolved_letters << @user_letter_guess
+    puts display_wrong_guess
+    puts display_letters_remaining
+  end
+
+  def game_solved?
+    !@solved_letters.include?('_')
+  end
+
+  def game_over?
+    @turn == 13
+  end
+
+  #serialization 
+  def save_game
+  end
+
 end
 
 
