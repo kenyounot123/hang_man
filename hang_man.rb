@@ -1,7 +1,75 @@
-#save_game needs to be updated
+#if user already inputted the letter reprompt to input another letter
+require 'yaml'
+module Database
+
+  #serialization 
+  def save_game
+    name = save_name
+    Dir.mkdir('output') unless Dir.exist?('output')
+    @filename = "output/#{name}_game.yaml"
+    File.open(@filename, 'w') do |file|
+      file.write to_yaml
+    end
+    puts "Saving game to #{@filename}"
+  end
+
+  def to_yaml
+    YAML.dump(
+      :word => @word,
+      :unsolved_letters => @unsolved_letters,
+      :turn => @turn,
+      :solved_letters => @solved_letters,
+    )
+  end
+
+  def save_name
+    puts "Enter a name for you to save your game"
+    name = gets.chomp
+    return name
+  end
+
+  def show_file_list
+    file_list.each_with_index do |file, index|
+      puts "#{index + 1}) #{file}"
+    end
+  end
+
+  def file_list
+    files = []
+    Dir.entries('output').each do |file|
+      files << file if file.include?('game')
+    end
+    files
+  end
+  def load_selected_file(file_number)
+    file = YAML.load(File.read("output/#{(file_list[file_number - 1])}"))
+    @word = file[:word]
+    @unsolved_letters = file[:unsolved_letters]
+    @turn = file[:turn]
+    @solved_letters = file[:solved_letters]
+  end
+
+  def load_saved_game
+    show_file_list
+    puts "Please select which game you want to load"
+    begin 
+      selected_file = Integer(gets.chomp)
+    rescue
+      puts "Please enter a number"
+      retry
+    end
+    if selected_file.between?(1, file_list.length)
+      load_selected_file(selected_file)
+    else
+      puts "That file does not exist"
+      exit
+    end
+    game_loop
+    File.delete(@filename) if File.exist?(@filename)
+  end
+end
 
 
-#module for all text content
 module Display
   def display_word_length 
     "The word for you to guess has been chosen and it has #{@solved_letters.length} letters\n"
@@ -20,8 +88,10 @@ module Display
 
   def display_turn_prompt
     <<~HEREDOC
+
       It is currently Turn #{@turn}, Try to guess the letters in the secret word.
       You can also type 'save' or 'exit' to leave the game.
+
     HEREDOC
   end
 
@@ -46,6 +116,7 @@ module Display
 
   def display_wrong_guess
     <<~HEREDOC
+
     This letter is not in the secret word
     #{@unsolved_letters.join(' , ')}
     HEREDOC
@@ -53,6 +124,7 @@ module Display
 
   def display_correct_guess
     <<~HEREDOC
+    #{@unsolved_letters.join(' , ')}
     You have guessed correctly!
     #{@solved_letters.join(' ')}
     HEREDOC
@@ -65,11 +137,37 @@ module Display
   def display_one_turn_left
     "Think hard! You have one try left\n"
   end
+
+  def display_exit_msg
+    "Exiting game ..."
+  end
+
+  def display_play_again_msg
+    "Do you want to play again? Enter Y/N"
+  end
+
+  def display_thank_you
+    "Thank you for playing!"
+  end
+
+  def display_winner_msg
+    "You have guessed the secret word, you win!!"
+  end
+  def display_loser_msg
+    <<~HEREDOC
+
+    "You Lose! The word was #{@word}"
+
+    Sorry you did not guess the word! 
+
+    HEREDOC
+  end
 end
 
-
 class Game
+  include Database
   include Display
+  attr_accessor :word, :turn, :all_letters, :unsolved_letters, :solved_letters
   def initialize
     @turn = 1
     @all_letters = ("a".."z").to_a
@@ -88,7 +186,7 @@ class Game
     puts display_instructions
     puts display_user_choice
     user_choice = gets.chomp
-    until user_choice == '1' || user_choice == '2'
+    until user_choice == '1' || user_choice == '2' 
       puts display_reprompt_user_choice
       user_choice = gets.chomp
     end
@@ -96,34 +194,42 @@ class Game
     load_saved_game if user_choice == '2'
   end
   
-  #game loop,
+  #Heart of the game
   # loops until turn 11 or until player has won
   # if user_letter_guess is in the hidden word, udpate solved_letters array with the letter filled in 
   # if it is not in the hidden word, go next turn 
   def new_game
     @word = random_word
-    puts @word
+    game_loop
+  end
+
+  def game_loop
     create_blank_letters
     until game_over? || game_solved?
       puts display_turn_prompt
       @user_letter_guess = gets.chomp.downcase
-      until @user_letter_guess.length == 1 && @all_letters.include?(@user_letter_guess)
+      until (@user_letter_guess.length == 1 && @all_letters.include?(@user_letter_guess)) || @user_letter_guess == 'save' || @user_letter_guess == 'exit'
         puts display_invalid_guess
         @user_letter_guess = gets.chomp.downcase
       end
       if @user_letter_guess == 'exit'
-        break
+        puts display_exit_msg
+        exit
       end
-      save_game if @user_letter_guess == 'save'
+      if @user_letter_guess == 'save'
+        save_game
+        play_again_option
+      end
       incorrect_guess unless @word.include?(@user_letter_guess)
       update_solved_letters if @word.include?(@user_letter_guess)
       puts display_one_turn_left if @turn == 12
-       
-    
     end
-  end
-
-  def load_saved_game
+    if game_solved?
+      puts display_winner_msg
+    else
+      puts display_loser_msg
+    end
+    play_again_option
   end
 
   def random_word 
@@ -159,9 +265,22 @@ class Game
     @turn == 13
   end
 
-  #serialization 
-  def save_game
+  def play_again_option
+    puts display_play_again_msg
+    player_choice = gets.chomp.downcase
+    until player_choice == 'y' || player_choice == 'n'
+      puts display_play_again_msg
+      player_choice = gets.chomp.downcase
+    end
+    if player_choice == 'y'
+      Game.new()
+    elsif player_choice == 'n'
+      puts display_thank_you
+      puts display_exit_msg
+      exit
+    end
   end
+
 
 end
 
