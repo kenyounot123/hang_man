@@ -1,4 +1,6 @@
-#if user already inputted the letter reprompt to input another letter
+#In the future, allow user to guess the word by typing in full words instead of letters one by one
+#can check word to see if it matches the guessed word, if it does , user wins.
+#saved game is deleted right after loading it , might want to change in the future
 require 'yaml'
 module Database
 
@@ -50,6 +52,10 @@ module Database
   end
 
   def load_saved_game
+    if file_list.empty?
+      puts "You have no saved games yet"
+      exit
+    end
     show_file_list
     puts "Please select which game you want to load"
     begin 
@@ -64,8 +70,9 @@ module Database
       puts "That file does not exist"
       exit
     end
+    File.delete("output/#{(file_list[selected_file - 1])}") if File.exist?("output/#{(file_list[selected_file - 1])}")
     game_loop
-    File.delete(@filename) if File.exist?(@filename)
+    
   end
 end
 
@@ -162,6 +169,9 @@ module Display
 
     HEREDOC
   end
+  def display_already_guessed_letter
+    "Please input another letter, you have already guessed this"
+  end
 end
 
 class Game
@@ -179,7 +189,6 @@ class Game
   def create_blank_letters
     @word.each_char { @solved_letters << '_'}
     puts display_word_length
-    puts @solved_letters.join(' ')
   end
   #Method to start the game, if 1 is entered , new game, if 2 is entered, load a saved game
   def game_start
@@ -200,18 +209,16 @@ class Game
   # if it is not in the hidden word, go next turn 
   def new_game
     @word = random_word
-    game_loop
+    create_blank_letters
+    game_loop 
   end
 
   def game_loop
-    create_blank_letters
+    puts display_letters_remaining
     until game_over? || game_solved?
       puts display_turn_prompt
       @user_letter_guess = gets.chomp.downcase
-      until (@user_letter_guess.length == 1 && @all_letters.include?(@user_letter_guess)) || @user_letter_guess == 'save' || @user_letter_guess == 'exit'
-        puts display_invalid_guess
-        @user_letter_guess = gets.chomp.downcase
-      end
+      guess_again_if_bad_input
       if @user_letter_guess == 'exit'
         puts display_exit_msg
         exit
@@ -230,6 +237,17 @@ class Game
       puts display_loser_msg
     end
     play_again_option
+  end
+
+  def guess_again_if_bad_input
+    while @solved_letters.include?(@user_letter_guess) || @unsolved_letters.include?(@user_letter_guess)
+      puts display_already_guessed_letter
+      @user_letter_guess = gets.chomp.downcase
+      until (@user_letter_guess.length == 1 && @all_letters.include?(@user_letter_guess)) || @user_letter_guess == 'save' || @user_letter_guess == 'exit'
+        puts display_invalid_guess
+        @user_letter_guess = gets.chomp.downcase
+      end
+    end
   end
 
   def random_word 
